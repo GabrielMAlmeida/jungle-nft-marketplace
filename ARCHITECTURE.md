@@ -51,11 +51,11 @@ A autorização e as senhas PBKDF2 acontecem apenas no mock do navegador. Trata-
 
 Design Kurio inspirado nos frames oficiais: fundo `#140D0A`, cartões `#241612`, cobre `#D28A4C`, destaque `#E89B55`, texto `#F5F1EB`, fonte Roboto Mono. Quatro imagens locais reutilizadas em várias telas, como no Figma. Algumas informações de edição são simplificadas para uma edição por NFT e a nomenclatura dos mocks é demonstrativa. Telas sem frame mobile próprio usam o grid responsivo.
 
-Inputs shadcn/ui foram integrados a autenticação, perfil, carteiras e checkout mantendo semântica HTML nativa; estados de erro usam alert/status. O controle de foco de drawers/modal e os cenários de lentidão/expiração não estão inteiramente equivalentes a um backend real: esses itens devem ser apresentados como limitações, não funcionalidades completas.
+Os componentes Input e Textarea adaptados ao padrão shadcn/ui são usados em autenticação, perfil, carteiras e checkout, com semântica HTML nativa e feedback de erro. A ampliação da arte usa um diálogo nativo com Escape e retorno do foco, validado por Playwright. Isso não substitui uma auditoria WCAG completa; outros componentes interativos e os cenários de falha seguem sujeitos a limitações da simulação.
 
 ## Testes e relatórios
 
-Testes `tests/e2e/*.spec.ts` rodam em Chromium desktop 1440×900 e mobile 390×844, com MSW ligado. Playwright gera HTML e traces em falha. A auditoria Lighthouse deve ser executada no build de preview em três repetições por perfil/página. Resultados não foram pré-preenchidos: documentar os valores realmente medidos.
+Os testes `tests/e2e/*.spec.ts` rodam em Chromium desktop (1440×900), mobile (390×844) e, para regressão visual, tablet (768×1024), com MSW ligado. O Playwright gera relatório HTML e traces em falha; as imagens de referência estão versionadas. As 12 medições Lighthouse e respectivas medianas, incluindo LCP, CLS e TBT, estão documentadas em `docs/LIGHTHOUSE.md`, com relatórios HTML/JSON versionados em `audits/lighthouse/`.
 
 ## Recuperação de pedido após timeout
 
