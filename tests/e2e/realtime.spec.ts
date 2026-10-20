@@ -32,3 +32,24 @@ test('nft.updated recalcula o carrinho sem refresh e ignora duplicatas',async({p
   await page.getByRole('button',{name:'Restaurar preço e estoque'}).click();
   await expect(page.getByText('1.193 ETH')).toBeVisible({timeout:10000});
 });
+
+// Refresh fecha o socket antigo e cria outro. A UI deve reconsultar o REST
+// e continuar recebendo eventos pelo protocolo Socket.IO no novo socket.
+test('realtime: reconecta após refresh e continua recebendo nft.updated',async({page})=>{
+  test.setTimeout(90000);
+  await expect(page.getByRole('link',{name:'Ver Emerald Ape #042'})).toBeVisible({timeout:15000});
+  await page.getByRole('link',{name:'Ver Emerald Ape #042'}).click();
+  await page.getByRole('button',{name:'Adicionar ao carrinho'}).click();
+  await page.goto('/cart',{waitUntil:'domcontentloaded'});
+  await expect(page.getByText('Socket.IO: conectado')).toBeVisible({timeout:15000});
+  await expect(page.getByText('1.193 ETH')).toBeVisible();
+  await page.getByText('Testar tempo real (MSW + Socket.IO)').click();
+  await page.getByRole('button',{name:'Aumentar preço +0,10 ETH'}).click();
+  await expect(page.getByText('1.293 ETH')).toBeVisible({timeout:10000});
+  await page.reload({waitUntil:'domcontentloaded'});
+  await expect(page.getByText('Socket.IO: conectado')).toBeVisible({timeout:15000});
+  await expect(page.getByText('1.293 ETH')).toBeVisible({timeout:15000});
+  await page.getByText('Testar tempo real (MSW + Socket.IO)').click();
+  await page.getByRole('button',{name:'Aumentar preço +0,10 ETH'}).click();
+  await expect(page.getByText('1.393 ETH')).toBeVisible({timeout:10000});
+});

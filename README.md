@@ -115,14 +115,16 @@ Foram executadas **12 auditorias** da versão de produção local (Home e detalh
 | Detalhes desktop | 78 | 95 | 96 | 92 |
 | Detalhes mobile | 78 | 95 | 96 | 92 |
 
-A execução das 12 medições terminou normalmente. As notas podem variar conforme dispositivo e ambiente; consulte os relatórios locais não versionados em `reports/lighthouse/` para dados individuais. A performance mobile é uma oportunidade de otimização futura.
+A execução das 12 medições terminou normalmente. As notas podem variar conforme dispositivo e ambiente; consulte os 24 relatórios versionados em `audits/lighthouse/` (12 pares HTML/JSON) e as medições LCP, CLS e TBT em `docs/LIGHTHOUSE.md`. Performance mobile e detalhes abaixo de 90 são limitações conhecidas e não devem ser apresentadas como metas alcançadas.
 
 ## Testes e qualidade
 
 - `npm run lint`, `npm run typecheck` e `npm run build` executados sem erros em 20/10/2026.
-- Playwright Chromium: **10/10 cenários aprovados** em uma execução completa.
-- Playwright mobile: **10/10 cenários aprovados** em uma execução completa após os ajustes dos testes.
-- Os testes cobrem catálogo, carrinho, cupom, login, compra confirmada, pagamento recusado, edição de perfil, isolamento de carteiras, cadastro e evento `nft.updated` via Socket.IO.
+- Playwright Chromium: **23/23 testes aprovados** em execução completa de 20/10/2026 antes do teste adicional de reconexão desta auditoria (12H).
+- Playwright mobile: **10/10 cenários funcionais aprovados** na execução anterior; reexecutar após alterações posteriores.
+- Regressão visual Playwright: **12/12 comparações aprovadas** (4 telas × desktop, mobile e tablet 768 px); baselines versionadas em `tests/e2e/visual.spec.ts-snapshots/`.
+- A suíte verifica catálogo, carrinho, cupom, login, compra confirmada e recusada, persistência, contas separadas, tratamento de rede/sessão, idempotência após timeout, teclado, zoom acessível e eventos `nft.updated` reais via cliente Socket.IO.
+- O novo teste `realtime: reconecta após refresh` verifica reconexão **após recarga**, conciliação REST e recebimento de outro evento; ele **não simula uma falha transitória de rede com a SPA aberta**.
 - A aplicação é uma **demonstração baseada em mocks no navegador**, não um marketplace com transações reais.
 
 ## Publicação
@@ -153,3 +155,16 @@ Reproduza com Playwright:
 ```powershell
 npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "expira sessão"
 ```
+
+
+## Revalidação final da entrega — auditoria 12H
+
+O teste de reconexão após refresh é executado com:
+
+```powershell
+npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "reconecta após refresh"
+```
+
+Após validar, execute a suíte Chromium completa, além de `npm run lint`, `npm run typecheck` e `npm run build`. Os testes visuais versionados são comparações de regressão local, **não uma prova de aderência exata ao Figma**. Testes de perda transitória do WebSocket sem recarga ainda não foram automatizados.
+
+A URL de demonstração exige `VITE_ENABLE_MOCKS=true` na Vercel. Antes de entregar, teste a aplicação pública em janela anônima: `/`, `/nft/nft-1`, `/cart`, `/login` e checkout; confirme `Socket.IO: conectado` no carrinho e que o preço muda sem refresh. Verifique também acesso direto a rotas e recarregamento.
