@@ -1,5 +1,5 @@
 import {useRealtimeSync} from './realtime/useRealtimeSync';
-import{useEffect,useState}from'react';import{Link,useNavigate,useParams,useSearch,useRouterState}from'@tanstack/react-router';import{useMutation,useQuery,useQueryClient}from'@tanstack/react-query';import{Search,ShoppingBag,Heart,UserRound,ArrowRight,X,ChevronLeft,ChevronRight,ShieldCheck,Trash2,ArrowLeft,SlidersHorizontal,Home as HomeIcon,ArrowUpRight}from'lucide-react';import{api,errorMessage}from'./lib/api';import type{NFT,NftList,CartLine,Quote,User}from'./types';import Decimal from'decimal.js';import{CheckoutExperience,OrderReceipt}from'./checkout/CheckoutExperience';
+import{useEffect,useRef,useState}from'react';import{Link,useNavigate,useParams,useSearch,useRouterState}from'@tanstack/react-router';import{useMutation,useQuery,useQueryClient}from'@tanstack/react-query';import{Search,ShoppingBag,Heart,UserRound,ArrowRight,X,ChevronLeft,ChevronRight,ShieldCheck,Trash2,ArrowLeft,SlidersHorizontal,Home as HomeIcon,ArrowUpRight}from'lucide-react';import{api,errorMessage}from'./lib/api';import type{NFT,NftList,CartLine,Quote,User}from'./types';import Decimal from'decimal.js';import{CheckoutExperience,OrderReceipt}from'./checkout/CheckoutExperience';
 import{AuthExperience}from'./account/AuthExperience';
 import{ProfileExperience,WalletsExperience}from'./account/AccountExperience';
 const eth=(v:string)=>`${new Decimal(v).toString()} ETH`;
@@ -135,6 +135,8 @@ export function Details(){
   const [quantity,setQuantity]=useState(1);
   const [preview,setPreview]=useState(0);
   const [enlarged,setEnlarged]=useState(false);
+  const zoomDialogRef=useRef<HTMLDialogElement|null>(null);
+  const zoomButtonRef=useRef<HTMLButtonElement|null>(null);
   const [status,setStatus]=useState('');
   const [saving,setSaving]=useState(false);
   useEffect(()=>{setQuantity(1);setPreview(0);setEnlarged(false);setStatus('')},[id]);
@@ -177,6 +179,8 @@ export function Details(){
       if(goToCart){await navigate({to:'/cart'});}else setStatus('NFT adicionado ao carrinho.');
     }catch(e){setStatus(errorMessage(e));}finally{setSaving(false);}
   };
+  const openZoom=()=>{zoomDialogRef.current?.showModal();setEnlarged(true)};
+  const closeZoom=()=>zoomDialogRef.current?.close();
   const tokenId=id.replace(/^nft-/,'').padStart(4,'0');
   const back=<Link className="detail-back" to="/" search={{q:'',category:'All',sort:'featured',page:1}}><ArrowLeft size={18}/> <span>Voltar ao mercado</span></Link>;
   if(nft.isPending)return <div className="kurio-details detail-loading" aria-label="Carregando detalhes do NFT"><div className="shimmer detail-skeleton-art"/><div className="shimmer detail-skeleton-copy"/></div>;
@@ -193,7 +197,12 @@ export function Details(){
           <div className="detail-thumbnails" aria-label="Prévia da arte digital">
             {[0,1,2,3].map(i=><button key={i} type="button" aria-label={`Visualização ${i+1}`} aria-pressed={preview===i} className={preview===i?'selected':''} onClick={()=>setPreview(i)}><img src={item.image} alt="" style={{objectPosition:['center','40% 50%','60% 50%','center 35%'][i]}}/></button>)}
           </div>
-          <div className="detail-main-art"><img className={enlarged?'is-zoomed':''} src={item.image} style={{objectPosition:['center','40% 50%','60% 50%','center 35%'][preview]}} alt={`Arte do NFT ${item.name}`}/><button type="button" className="detail-zoom" aria-label={enlarged?'Reduzir imagem':'Ampliar imagem'} aria-pressed={enlarged} onClick={()=>setEnlarged(v=>!v)}><Search size={18}/></button></div>
+          <div className="detail-main-art"><img src={item.image} style={{objectPosition:['center','40% 50%','60% 50%','center 35%'][preview]}} alt={`Arte do NFT ${item.name}`}/><button ref={zoomButtonRef} type="button" className="detail-zoom" aria-label="Ampliar imagem" aria-haspopup="dialog" aria-expanded={enlarged} onClick={openZoom}><Search size={18}/></button></div>
+          <dialog ref={zoomDialogRef} className="kurio-zoom-dialog" aria-label={`Visualização ampliada: ${item.name}`} onClose={()=>{setEnlarged(false);zoomButtonRef.current?.focus()}}>
+            <button type="button" className="kurio-zoom-close" aria-label="Fechar visualização ampliada" onClick={closeZoom}><X size={20}/></button>
+            <img src={item.image} alt={`Arte ampliada do NFT ${item.name}`}/>
+            <p>{item.name} — visualização ampliada</p>
+          </dialog>
         </div>
       </div>
       <section className="detail-info" aria-labelledby="detail-name">

@@ -136,3 +136,20 @@ Consulte `ARCHITECTURE.md` e `docs/REST_API.md`. Alguns detalhes do mock são re
 ## Verificação de idempotência e timeout
 
 `npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "idempotência REST|timeout após criação"` executa os cenários de reenvio da mesma chave, conflito HTTP 409 com conteúdo diferente e recuperação após timeout/refresh usando a **mesma compra**. No checkout, selecione `timeout` em **Cenários de teste (MSW)**; após a mensagem de tempo esgotado, use **Recuperar pedido anterior** para reabrir o recibo sem novo pedido.
+
+
+### Sessão expirada durante uma compra — auditoria 12E
+
+O Axios detecta HTTP 401 de uma requisição com token da sessão atual, limpa apenas
+esta sessão e redireciona ao login. A rota protegida de origem fica registrada em
+`kurio-after-login`: após nova autenticação, o usuário volta ao checkout, perfil,
+carteiras, favoritos ou recibo. O carrinho do usuário não é apagado. Respostas HTTP
+401 de uma sessão anterior não derrubam logins posteriores. Uma tentativa de pedido
+rejeitada pelo servidor com HTTP 401 libera a chave local antes de reautenticar;
+timeouts sem resposta **preservam** a tentativa para recuperação idempotente.
+
+Reproduza com Playwright:
+
+```powershell
+npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "expira sessão"
+```

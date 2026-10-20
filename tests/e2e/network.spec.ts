@@ -56,12 +56,42 @@ test('MSW expira sessão, restringe dados da conta e permite login novamente',as
   await expect(page).toHaveURL(/\/cart/);
   await scenario(page,'session','expire');
   await page.goto('/account');
-  await expect(page.getByText('Faça login para acessar seus dados privados.')).toBeVisible({timeout:15000});
-  await page.getByRole('link',{name:'Entrar',exact:true}).last().click();
+  await expect(page).toHaveURL(/\/login/, {timeout:15000});
+  await expect(page.getByText('Sua sessão expirou. Entre novamente para continuar de onde parou.')).toBeVisible();
   await page.getByLabel('E-mail',{exact:true}).fill('alex@demo.com');
   await page.getByLabel('Senha',{exact:true}).fill('Demo123!');
   await page.getByRole('button',{name:'Entrar',exact:true}).click();
-  await expect(page).toHaveURL(/\/cart/);
+  await expect(page).toHaveURL(/\/account/);
+  await expect(page.getByRole('heading',{name:'Perfil do colecionador'})).toBeVisible();
+});
+
+test('MSW expira sessão durante checkout, mantém carrinho e retoma após login',async({page})=>{
+  // Fluxo equivalente ao checkout E2E já aprovado: catálogo → carrinho
+  // → conectar e finalizar → login → checkout. Evita navegações completas
+  // concorrentes com a migração do carrinho no fim da autenticação.
+  await page.getByRole('link',{name:'Ver Emerald Ape #042'}).click();
+  await page.getByRole('button',{name:'Adicionar ao carrinho'}).click();
+  await page.goto('/cart',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('.cart-item-row').first()).toContainText('Emerald Ape #042',{timeout:15000});
+  await page.getByRole('link',{name:'Conectar e finalizar'}).click();
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel('E-mail',{exact:true}).fill('alex@demo.com');
+  await page.getByLabel('Senha',{exact:true}).fill('Demo123!');
+  await page.getByRole('button',{name:'Entrar',exact:true}).click();
+  await expect(page).toHaveURL(/\/checkout/,{timeout:15000});
+  await expect(page.getByRole('button',{name:'Confirmar compra'})).toBeVisible({timeout:15000});
+  await expect(page.getByText('Emerald Ape #042')).toBeVisible();
+  await scenario(page,'orders','expire',1);
+  await page.getByRole('checkbox',{name:/Conferi os NFTs/}).check();
+  await page.getByRole('button',{name:'Confirmar compra'}).click();
+  await expect(page).toHaveURL(/\/login/, {timeout:15000});
+  await expect(page.getByText('Sua sessão expirou. Entre novamente para continuar de onde parou.')).toBeVisible();
+  await page.getByLabel('E-mail',{exact:true}).fill('alex@demo.com');
+  await page.getByLabel('Senha',{exact:true}).fill('Demo123!');
+  await page.getByRole('button',{name:'Entrar',exact:true}).click();
+  await expect(page).toHaveURL(/\/checkout/);
+  await expect(page.getByRole('button',{name:'Confirmar compra'})).toBeVisible();
+  await expect(page.getByText('Emerald Ape #042')).toBeVisible();
 });
 
 test('link direto para NFT inexistente mostra estado de erro consistente',async({page})=>{

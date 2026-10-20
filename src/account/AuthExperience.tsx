@@ -1,5 +1,5 @@
 import {Input} from '../components/ui/input';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import type {FormEvent} from 'react';
 import {Link,useNavigate} from '@tanstack/react-router';
 import {useQueryClient} from '@tanstack/react-query';
@@ -16,6 +16,8 @@ export function AuthExperience({mode}:{mode:Mode}){
  const [name,setName]=useState('');const [email,setEmail]=useState('');
  const [password,setPassword]=useState('');const [confirm,setConfirm]=useState('');
  const [showPassword,setShowPassword]=useState(false);const [error,setError]=useState('');const [busy,setBusy]=useState(false);
+ const [sessionNotice]=useState(()=>sessionStorage.getItem('kurio-session-notice')??'');
+ useEffect(()=>{if(sessionNotice)sessionStorage.removeItem('kurio-session-notice')},[sessionNotice]);
  const register=mode==='register';
  const submit=async(e:FormEvent)=>{
   e.preventDefault();setError('');
@@ -42,7 +44,13 @@ export function AuthExperience({mode}:{mode:Mode}){
    }
    qc.clear();
    const after=sessionStorage.getItem('kurio-after-login');sessionStorage.removeItem('kurio-after-login');
-   await navigate({to:after==='/checkout'?'/checkout':register?'/account':'/cart'});
+   if(after&&/^\/orders\/ORD-[a-zA-Z0-9-]+$/.test(after)){
+    await navigate({to:'/orders/$id',params:{id:after.slice('/orders/'.length)}});
+   }else if(after==='/checkout')await navigate({to:'/checkout'});
+   else if(after==='/account')await navigate({to:'/account'});
+   else if(after==='/account/wallets')await navigate({to:'/account/wallets'});
+   else if(after==='/favorites')await navigate({to:'/favorites'});
+   else await navigate({to:register?'/account':'/cart'});
   }catch(e){setError(errorMessage(e))}finally{setBusy(false)}
  };
  return <div className="kurio-auth-page">
@@ -60,6 +68,7 @@ export function AuthExperience({mode}:{mode:Mode}){
     <label>E-mail<Input aria-label="E-mail" required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="contato@email.com"/></label>
     <label>Senha<div className="kurio-auth-password"><Input aria-label="Senha" required minLength={8} type={showPassword?'text':'password'} autoComplete={register?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo de oito caracteres"/><button type="button" aria-label={showPassword?'Ocultar senha':'Mostrar senha'} onClick={()=>setShowPassword(x=>!x)}>{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>
     {register&&<label>Confirmar senha<Input aria-label="Confirmar senha" required minLength={8} type={showPassword?'text':'password'} autoComplete="new-password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repita sua senha"/></label>}
+    {!register&&sessionNotice&&<p role="alert" className="kurio-auth-error">{sessionNotice}</p>}
     {!register&&<p className="kurio-auth-help">A recuperação de senha não faz parte da simulação.</p>}
     {error&&<p role="alert" className="kurio-auth-error">{error}</p>}
     <button className="kurio-auth-submit" type="submit" disabled={busy}>{busy?'Aguarde...':register?'Criar conta':'Entrar'}</button>

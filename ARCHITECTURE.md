@@ -60,3 +60,18 @@ Testes `tests/e2e/*.spec.ts` rodam em Chromium desktop 1440×900 e mobile 390×8
 ## Recuperação de pedido após timeout
 
 O checkout salva `kurio-order-attempt` em `sessionStorage` até obter o resultado. Se a requisição atingir timeout **após gravar o pedido**, o usuário pode consultar `GET /api/orders/by-key/:key`, escopado pelo proprietário autenticado. A recuperação funciona mesmo que o pedido finalize em segundo plano e o carrinho fique vazio após refresh. O endpoint retorna o mesmo pedido e nunca inicia outra compra. O fluxo é exercitado em `tests/e2e/idempotency.spec.ts`.
+
+
+## Expiração e retomada de sessão (12E)
+
+Um interceptor de resposta Axios diferencia HTTP 401 do token corrente de falhas
+de autenticação no login. Registra a rota privada para retomada, apaga somente a
+sessão expirante e envia ao login. O fluxo de autenticação retoma checkout ou
+recibo específico, se aplicável; a API continua protegendo recursos por usuário.
+A requisição 401 rejeitada em `POST /orders` nunca cria pedido e permite uma nova
+chave após autenticar; um timeout sem resposta preserva a chave e exige consulta
+ao pedido anterior. São estratégias deliberadamente distintas.
+
+## Acessibilidade — ampliação da arte
+
+A ampliação do NFT é um `<dialog>` nativo aberto por `showModal()`, com foco preso pelo navegador, fechamento por Esc e restauração explícita do foco ao botão que abriu o modal. `tests/e2e/accessibility.spec.ts` exercita o fluxo via teclado e valida o formulário de login. Não confundir os testes com uma auditoria WCAG completa.
