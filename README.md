@@ -1,170 +1,215 @@
-# Desafio Frontend — Marketplace de NFTs
+# Kurio — NFT Marketplace
 
-Aplicação demonstrativa **Kurio** desenvolvida em React + TypeScript para o desafio Front-end da Jungle Gaming. A interface utiliza o Figma disponibilizado para o processo seletivo. Todos os pagamentos, carteiras, autenticação e operações de NFTs são **simulados**; nenhum token é transferido.
+Marketplace de NFTs desenvolvido com **React e TypeScript** para o desafio técnico de Front-end da **Jungle Gaming**, a partir da identidade visual disponibilizada no Figma. A aplicação contempla descoberta de coleções, gerenciamento de conta, compra simulada e sincronização de dados em tempo real.
+
+**[Acessar demonstração](https://jungle-nft-marketplace-five.vercel.app/)** · **[Layout de referência (Figma)](https://www.figma.com/design/Ff0SksUi7UFtPWUO8kyNtw/Frontend-Challenge?node-id=0-1)** · **[Arquitetura](ARCHITECTURE.md)** · **[Contratos REST](docs/REST_API.md)**
+
+> **Ambiente demonstrativo:** autenticação, pagamentos, carteiras e NFTs são simulados com MSW. Não há blockchain, transferência de tokens nem transações financeiras reais.
+
+## Funcionalidades
+
+| Área | O que está disponível |
+| --- | --- |
+| **Marketplace** | NFTs em destaque, busca, categorias, ordenação, paginação e parâmetros persistidos na URL |
+| **Detalhes** | Galeria e ampliação de imagem, informações de edição, quantidade, disponibilidade e favoritos |
+| **Carrinho** | Adição e remoção de itens, ajuste de quantidades, cupom, taxas e cotação em ETH |
+| **Checkout** | Seleção de rede/carteira fictícia, revisão de valores e simulação de pagamento |
+| **Pedidos** | Estados pendente, confirmado e recusado, recibo com snapshot e recuperação idempotente após timeout |
+| **Colecionador** | Cadastro, login, logout, perfil, avatar, alteração de senha e até duas carteiras |
+| **Tempo real** | Atualizações de preço/estoque e status do pedido via eventos Socket.IO simulados pelo MSW |
+
+A interface é responsiva e inclui estados de carregamento, erro e vazio. Carrinho e dados fictícios sobrevivem ao refresh no mesmo navegador; uma sessão expirada permite nova autenticação e retomada do fluxo.
 
 ## Tecnologias
 
-- React + TypeScript + Vite; TanStack Router para rotas e estado da URL
-- TanStack Query para consulta, cache e mutations; Axios para REST
-- MSW 2 para mock REST e WebSocket, `socket.io-client` + `@mswjs/socket.io-binding` para tempo real
-- Tailwind CSS e componentes shadcn/ui adaptados à identidade Kurio (`src/components/ui/`)
-- Decimal.js para valores de ETH; Playwright (Chromium desktop e mobile); Lighthouse
+| Finalidade | Tecnologia |
+| --- | --- |
+| Interface e linguagem | React 19, TypeScript, Vite |
+| Rotas e estado da URL | TanStack Router |
+| Dados assíncronos e cache | TanStack Query |
+| Integração REST | Axios |
+| Eventos em tempo real | `socket.io-client` com `@mswjs/socket.io-binding` |
+| Mocks de rede | Mock Service Worker (MSW 2) |
+| Estilos e componentes | Tailwind CSS; componentes `Input` e `Textarea` adaptados ao padrão shadcn/ui em `src/components/ui/` |
+| Valores monetários | Decimal.js (valores ETH transportados como strings decimais) |
+| Testes e auditoria | Playwright e Lighthouse |
 
-## Setup — Windows / PowerShell
+### Visão da arquitetura
 
-Requisitos: Node.js 22+, npm e navegador Chrome. No terminal na raiz:
+```text
+React (telas e formulários)
+    ├── TanStack Router (rotas e filtros na URL)
+    ├── TanStack Query (consultas, mutations e cache)
+    └── Axios (requisições REST)
+             ↓
+       Service Worker MSW
+             ↓
+  Fixtures e persistência local
+
+socket.io-client ↔ MSW + socket.io-binding
+             ↓
+  Eventos nft.updated e order.updated
+             ↓
+ Atualização do cache e reconciliação REST
+```
+
+As decisões de sessão, idempotência, reconexão, autorização fictícia e limites do mock estão detalhadas em [ARCHITECTURE.md](ARCHITECTURE.md). A lista de endpoints e eventos está em [docs/REST_API.md](docs/REST_API.md).
+
+## Executar localmente
+
+**Pré-requisitos:** Node.js 22+, npm e navegador compatível com Chromium.
+
+```bash
+git clone https://github.com/GabrielMAlmeida/jungle-nft-marketplace.git
+cd jungle-nft-marketplace
+npm ci
+```
+
+Configure `.env` a partir de `.env.example`, com:
+
+```dotenv
+VITE_ENABLE_MOCKS=true
+```
+
+No Windows (PowerShell):
 
 ```powershell
-npm ci
-npx msw init public/ --save
-Copy-Item .env.example .env  # apenas se .env ainda não existir
+Copy-Item .env.example .env
 npm run dev
 ```
 
-Abra `http://localhost:5173`. Os arquivos `public/images/nft-*.png` são necessários (assets extraídos do Figma); os PNGs devem fazer parte do repositório entregue. O arquivo `public/mockServiceWorker.js` também deve estar versionado. O mock fica ligado com `VITE_ENABLE_MOCKS=true` e estará disponível no build de demonstração.
+No macOS/Linux:
 
-## Credenciais fictícias
-
-- `alex@demo.com` — `Demo123!`
-- `sam@demo.com` — `Demo123!`
-- Cupom válido: `JUNGLE10` (10%). Outros códigos são rejeitados.
-
-As senhas das contas de demonstração usam PBKDF2 no armazenamento fictício do navegador. **Isto não constitui autenticação segura de produção:** os dados e o estado do mock vivem no cliente, sem backend real.
-
-## Comandos
-
-```powershell
+```bash
+cp .env.example .env
 npm run dev
-npm run typecheck
-npm run lint
+```
+
+Acesse **http://localhost:5173**. O arquivo `public/mockServiceWorker.js` e as imagens em `public/images/` já fazem parte do repositório; o projeto não depende de serviços privados ou de um backend externo. Se for necessário regenerar o worker, execute `npx msw init public/ --save`.
+
+Para testar o build otimizado:
+
+```bash
 npm run build
 npm run preview
-npx playwright install chromium
-npm run test:e2e -- --project=chromium --workers=1
-npm run test:e2e -- --project=mobile --workers=1
-npm run test:report
 ```
 
-Relatório Playwright: `playwright-report/index.html`. Trace e captura de falhas: `test-results/`. Para auditoria, com `npm run preview` em um terminal, execute `powershell -ExecutionPolicy Bypass -File .\scripts\audit-lighthouse.ps1` em outro. Os relatórios ficam em `reports/lighthouse/` (12 medidas: Home e detalhe × mobile/desktop × 3). Registre as **medianas observadas**; não trate o valor de uma medição como resultado consolidado.
+### Contas de demonstração
 
-## Fluxos e cenários de demonstração
+| E-mail | Senha |
+| --- | --- |
+| `alex@demo.com` | `Demo123!` |
+| `sam@demo.com` | `Demo123!` |
 
-1. Abra a Home, filtre/ordene/pesquise. Os parâmetros `q`, `category`, `sort`, `page` aparecem na URL.
-2. Entre em um NFT, escolha quantidade, favorite (exige login) e adicione ao carrinho.
-3. No carrinho, altere quantidade, aplique/remova `JUNGLE10`, atualize a página e confira a persistência.
-4. Clique em **Conectar e finalizar**; se visitante, autentique-se; o carrinho é transferido ao usuário.
-5. No checkout, configure dados e carteira, confira a cotação e aceite a revisão.
-6. Expanda **Cenários de teste (MSW)** para escolher compra aprovada, recusada ou timeout. Pedido confirmado aparece no recibo com itens e valores imutáveis. Pedido recusado preserva o carrinho; após timeout, a mesma tentativa usa a mesma chave de idempotência.
-7. Em **Minha conta**, edite perfil, avatar, senha e até duas carteiras fictícias.
-8. Para simular mudança de preço, adicione um NFT ao carrinho; abra **Testar tempo real (MSW + Socket.IO)** e use os botões de preço, estoque, restauração e evento repetido. O mock persiste a mudança no REST e emite o evento pelo protocolo Socket.IO, atualizando a tela sem refresh.
+**Cupom válido:** `JUNGLE10` (10% de desconto). Outros códigos são rejeitados. Use apenas dados fictícios: as informações do mock ficam no navegador e a proteção PBKDF2 é demonstrativa, não autenticação de produção.
 
-**Reset de cenário**: no Chrome DevTools → Application → Storage → Clear site data, ou no Console:
+## Como explorar os fluxos
+
+1. Na **Home**, pesquise NFTs, combine filtros, ordene os resultados, navegue entre páginas e teste o histórico do navegador. Os parâmetros `q`, `category`, `sort` e `page` integram a URL.
+2. Abra o **detalhe** de um NFT, ajuste a quantidade e adicione ao carrinho. Faça login para usar favoritos.
+3. No **carrinho**, altere itens, aplique/remova `JUNGLE10` e atualize a página para verificar a persistência.
+4. Escolha **Conectar e finalizar**. Caso seja visitante, autentique-se; o fluxo retoma o checkout com o carrinho preservado.
+5. No **checkout**, confira a cotação, a carteira e a rede, aceite a revisão e simule um pedido. Em **Cenários de teste (MSW)**, selecione sucesso, recusa ou timeout.
+6. Um pedido confirmado abre um **recibo** com os valores registrados na compra. Um pagamento recusado preserva o carrinho. Após timeout, **Recuperar pedido anterior** consulta a mesma tentativa, sem duplicar a compra.
+7. Em **Minha conta**, edite perfil, avatar e senha e cadastre até duas carteiras fictícias.
+
+### Testar atualizações em tempo real
+
+Com um NFT no carrinho, abra **Testar tempo real (MSW + Socket.IO)**. Use os comandos para aumentar preço, esgotar/restaurar estoque e repetir um evento anterior. A alteração ocorre primeiro nos handlers MSW, aparece nas respostas REST e é propagada pelo protocolo Socket.IO ao cliente, atualizando a tela sem refresh. Eventos antigos e duplicados não devem regredir o estado.
+
+### Simular falhas de rede e sessão
+
+Os cenários ficam **desligados por padrão** e são configurados no MSW pela rota `/api/demo/network`. No Console do navegador, com a aplicação aberta, execute:
+
+```javascript
+await fetch('/api/demo/network', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ scope: 'catalog', mode: 'http500' })
+});
+```
+
+Depois, altere a busca na Home. O catálogo receberá HTTP **503** (duas tentativas por padrão) e deverá exibir a opção **Tentar novamente**. Para desativar a simulação:
+
+```javascript
+await fetch('/api/demo/network', { method: 'DELETE' });
+```
+
+| Escopo | Recurso | Cenários |
+| --- | --- | --- |
+| `catalog` | `GET /api/nfts` | `slow`, `stagger`, `http500`, `offline` |
+| `detail` | `GET /api/nfts/:id` | Os mesmos |
+| `quote` | `POST /api/quote` | Os mesmos |
+| `session` | `GET /api/auth/me` | Os mesmos + `expire` |
+| `orders` | `POST /api/orders` | Os mesmos + `expire` |
+
+`slow`: atraso de 1.250 ms; `stagger`: atrasos alternados de 1.800/60 ms; `http500`: resposta HTTP 503; `offline`: erro de conexão; `expire`: invalidação da sessão com HTTP 401. Use `times` (1 a 5) para limitar ocorrências. O timeout após criação de pedido é selecionado separadamente no checkout.
+
+**Reiniciar dados da demonstração:** Chrome DevTools → Application → Storage → Clear site data; ou, no Console:
 
 ```javascript
 localStorage.clear(); sessionStorage.clear(); location.reload();
 ```
 
-O reset apaga usuários, compras e carteiras criados localmente no navegador. Não use dados reais. Em testes Playwright, cada teste deve iniciar com armazenamento limpo.
-
-## Cenários de rede reproduzíveis (MSW)
-
-A API de demonstração expõe `/api/demo/network` para simular condições de rede **na camada MSW**, sem alterar o Axios ou substituir dados diretamente nos componentes. Os cenários são desligados por padrão e armazenados apenas na sessão da aba.
-
-Abra o Console do navegador com a aplicação carregada e execute, por exemplo:
-
-```javascript
-await fetch('/api/demo/network', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({scope: 'catalog', mode: 'http500'})
-});
-```
-
-Em seguida altere a busca na Home. A API responderá com **503 em duas tentativas** (inclui o retry do TanStack Query); o catálogo deverá mostrar erro e permitir **Tentar novamente**. Para retirar a simulação:
-
-```javascript
-await fetch('/api/demo/network', {method: 'DELETE'});
-```
-
-| `scope` | Requisições afetadas | `mode` disponível |
-| --- | --- | --- |
-| `catalog` | GET `/api/nfts` | `slow`, `stagger`, `http500`, `offline` |
-| `detail` | GET `/api/nfts/:id` | `slow`, `stagger`, `http500`, `offline` |
-| `quote` | POST `/api/quote` | `slow`, `stagger`, `http500`, `offline` |
-| `session` | GET `/api/auth/me` | anteriores + `expire` |
-| `orders` | POST `/api/orders` | anteriores + `expire` |
-
-Modos: `slow` acrescenta 1250 ms; `stagger` alterna 1800/60 ms para reproduzir respostas fora de ordem; `http500` retorna 503; `offline` gera erro de conexão; `expire` revoga o token no mock e responde 401. `normal` ou DELETE limpa a configuração. `http500` e `offline` ocorrem **duas vezes por padrão**, para exercitar retries; use `times: 1` a `5` no corpo para personalizar. `expire` ocorre uma vez. A latência retorna ao normal após limpar o cenário. O modo `timeout` do checkout continua disponível no formulário de pagamento e exercita idempotência.
-
-Os testes adicionais estão em `tests/e2e/network.spec.ts`:
-
-```powershell
-npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "MSW|link direto"
-```
-
-**Não use credenciais reais:** a sessão, as carteiras e os pedidos são fictícios e persistidos no navegador. Testes E2E fazem reset local antes de cada cenário.
-
-## Auditoria Lighthouse — 20/10/2026
-
-Foram executadas **12 auditorias** da versão de produção local (Home e detalhe do NFT, em mobile e desktop, três medições por combinação). Os resultados abaixo são as **medianas** de cada categoria, em escala de 0 a 100.
-
-| Página | Performance | Acessibilidade | Boas práticas | SEO |
-|---|---:|---:|---:|---:|
-| Home desktop | 98 | 96 | 96 | 92 |
-| Home mobile | 74 | 96 | 93 | 92 |
-| Detalhes desktop | 78 | 95 | 96 | 92 |
-| Detalhes mobile | 78 | 95 | 96 | 92 |
-
-A execução das 12 medições terminou normalmente. As notas podem variar conforme dispositivo e ambiente; consulte os 24 relatórios versionados em `audits/lighthouse/` (12 pares HTML/JSON) e as medições LCP, CLS e TBT em `docs/LIGHTHOUSE.md`. Performance mobile e detalhes abaixo de 90 são limitações conhecidas e não devem ser apresentadas como metas alcançadas.
+Isso remove contas, carteiras e pedidos locais do navegador. Os testes Playwright isolam o armazenamento antes dos cenários.
 
 ## Testes e qualidade
 
-- `npm run lint`, `npm run typecheck` e `npm run build` executados sem erros em 20/10/2026.
-- Playwright Chromium: **23/23 testes aprovados** em execução completa de 20/10/2026 antes do teste adicional de reconexão desta auditoria (12H).
-- Playwright mobile: **10/10 cenários funcionais aprovados** na execução anterior; reexecutar após alterações posteriores.
-- Regressão visual Playwright: **12/12 comparações aprovadas** (4 telas × desktop, mobile e tablet 768 px); baselines versionadas em `tests/e2e/visual.spec.ts-snapshots/`.
-- A suíte verifica catálogo, carrinho, cupom, login, compra confirmada e recusada, persistência, contas separadas, tratamento de rede/sessão, idempotência após timeout, teclado, zoom acessível e eventos `nft.updated` reais via cliente Socket.IO.
-- O novo teste `realtime: reconecta após refresh` verifica reconexão **após recarga**, conciliação REST e recebimento de outro evento; ele **não simula uma falha transitória de rede com a SPA aberta**.
-- A aplicação é uma **demonstração baseada em mocks no navegador**, não um marketplace com transações reais.
+Os comandos abaixo executam validação estática, build e testes E2E com os mocks:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npx playwright install chromium
+npm run test:e2e -- --project=chromium --workers=1
+npm run test:e2e -- --project=mobile --workers=1
+npm run test:e2e -- --project=tablet --workers=1
+npm run test:report
+```
+
+**Resultados registrados em 20/10/2026:** lint, TypeScript e build sem erros; **23/23 testes Chromium aprovados** em uma execução completa; **12/12 comparações visuais aprovadas** (Home, detalhe, carrinho e checkout × desktop, mobile e tablet); **10/10 testes mobile funcionais aprovados em execução anterior**, antes das correções posteriores. Foi adicionado um teste de reconexão após refresh, mas seu resultado não está incluído na execução consolidada de 23 testes. Não se deve inferir aprovação de testes ainda não reexecutados.
+
+Os testes exercitam compras confirmadas e recusadas, sessões, carrinhos separados, falhas 503/offline, recuperação após timeout, idempotência, eventos Socket.IO e acessibilidade por teclado. As capturas de referência estão em `tests/e2e/visual.spec.ts-snapshots/`, com procedimento em [docs/VISUAL_REGRESSION.md](docs/VISUAL_REGRESSION.md). Essas comparações medem regressão em relação às referências capturadas, não aderência exata ao Figma.
+
+Os relatórios HTML/trace do Playwright são gerados localmente em `playwright-report/` e `test-results/`.
+
+### Lighthouse
+
+Foram realizadas **12 medições** no build otimizado local: Home e detalhe × mobile e desktop × três repetições. Medianas:
+
+| Página / perfil | Performance | Acessibilidade | Boas práticas | SEO |
+| --- | ---: | ---: | ---: | ---: |
+| Home — desktop | 98 | 96 | 96 | 92 |
+| Home — mobile | 74 | 96 | 93 | 92 |
+| Detalhe — desktop | 78 | 95 | 96 | 92 |
+| Detalhe — mobile | 78 | 95 | 96 | 92 |
+
+As metas oficiais são **90 / 95 / 95 / 90**, respectivamente. Há resultados abaixo da meta, especialmente em performance mobile e no detalhe; não foram tratados como aprovações. Os relatórios HTML/JSON estão em [audits/lighthouse](audits/lighthouse/) (12 pares). As medições de **LCP, CLS e TBT**, o ambiente e a versão das ferramentas estão em [docs/LIGHTHOUSE.md](docs/LIGHTHOUSE.md).
+
+Para repetir as auditorias no Windows, execute `npm run build` e `npm run preview` e, em outro PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/audit-lighthouse.ps1
+```
 
 ## Publicação
 
-Use build Vite (`npm run build`) e diretório `dist/`. No Vercel, o `vercel.json` faz o fallback das rotas SPA para `/index.html`. **Mantenha os mocks ligados no deploy** e confira acesso direto a `/nft/nft-1`, `/cart`, `/checkout` e às páginas de conta. Nenhum backend privado é necessário.
+**Aplicação pública:** https://jungle-nft-marketplace-five.vercel.app/
 
-## Arquitetura e limites
+- Framework: Vite; build: `npm run build`; saída: `dist/`.
+- Na Vercel, configure `VITE_ENABLE_MOCKS=true` para a demonstração.
+- `vercel.json` habilita fallback de rotas SPA, inclusive ao acessar e recarregar `/nft/nft-1`, `/cart` e `/checkout`.
+- A instalação a partir de um checkout limpo não requer backend privado.
 
-Consulte `ARCHITECTURE.md` e `docs/REST_API.md`. Alguns detalhes do mock são representações simplificadas: as quatro artes originais do Figma são reaproveitadas, a seleção de edição é simplificada para uma edição por NFT, e não há blockchain, OAuth externo ou carteira real. As regras da API são simuladas e devem ser avaliadas como tal.
+## Limitações conhecidas
 
-## Verificação de idempotência e timeout
+- Auth, carteiras, pagamentos e eventos dependem dos mocks executados no navegador. Os dados não são compartilhados entre dispositivos, nem equivalem a segurança ou transações reais.
+- As quatro artes locais do Figma são reutilizadas em outras coleções. A seleção de edição foi simplificada para uma edição por NFT.
+- Os testes cobrem reconexão após refresh, mas não comprovam interrupção transitória do WebSocket com a SPA aberta.
+- O projeto tem resultados Lighthouse abaixo das metas especificadas em alguns cenários; os relatórios originais foram preservados.
+- Os componentes de UI no padrão shadcn/ui foram adaptados localmente; não há uma biblioteca completa de componentes instalada.
 
-`npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "idempotência REST|timeout após criação"` executa os cenários de reenvio da mesma chave, conflito HTTP 409 com conteúdo diferente e recuperação após timeout/refresh usando a **mesma compra**. No checkout, selecione `timeout` em **Cenários de teste (MSW)**; após a mensagem de tempo esgotado, use **Recuperar pedido anterior** para reabrir o recibo sem novo pedido.
+---
 
-
-### Sessão expirada durante uma compra — auditoria 12E
-
-O Axios detecta HTTP 401 de uma requisição com token da sessão atual, limpa apenas
-esta sessão e redireciona ao login. A rota protegida de origem fica registrada em
-`kurio-after-login`: após nova autenticação, o usuário volta ao checkout, perfil,
-carteiras, favoritos ou recibo. O carrinho do usuário não é apagado. Respostas HTTP
-401 de uma sessão anterior não derrubam logins posteriores. Uma tentativa de pedido
-rejeitada pelo servidor com HTTP 401 libera a chave local antes de reautenticar;
-timeouts sem resposta **preservam** a tentativa para recuperação idempotente.
-
-Reproduza com Playwright:
-
-```powershell
-npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "expira sessão"
-```
-
-
-## Revalidação final da entrega — auditoria 12H
-
-O teste de reconexão após refresh é executado com:
-
-```powershell
-npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "reconecta após refresh"
-```
-
-Após validar, execute a suíte Chromium completa, além de `npm run lint`, `npm run typecheck` e `npm run build`. Os testes visuais versionados são comparações de regressão local, **não uma prova de aderência exata ao Figma**. Testes de perda transitória do WebSocket sem recarga ainda não foram automatizados.
-
-A URL de demonstração exige `VITE_ENABLE_MOCKS=true` na Vercel. Antes de entregar, teste a aplicação pública em janela anônima: `/`, `/nft/nft-1`, `/cart`, `/login` e checkout; confirme `Socket.IO: conectado` no carrinho e que o preço muda sem refresh. Verifique também acesso direto a rotas e recarregamento.
+Projeto desenvolvido para o **desafio técnico Front-end da Jungle Gaming**. Documentação complementar: [Arquitetura](ARCHITECTURE.md) · [API REST e eventos](docs/REST_API.md) · [Evidências Lighthouse](docs/LIGHTHOUSE.md) · [Regressão visual](docs/VISUAL_REGRESSION.md).
