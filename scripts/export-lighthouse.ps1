@@ -1,4 +1,4 @@
-# Exporta relatórios gerados previamente em reports/lighthouse para o repositório.
+﻿# Exporta relatórios gerados previamente em reports/lighthouse para o repositório.
 # Não altera as pontuações e não executa Lighthouse novamente.
 $ErrorActionPreference = 'Stop'
 $source = Join-Path (Get-Location).Path 'reports/lighthouse'
