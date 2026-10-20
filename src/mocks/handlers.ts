@@ -4,6 +4,7 @@ import {readDB,saveDB} from './data';
 import type {CartLine,Quote,Order,CollectorProfile,CollectorWallet} from '../types';
 import {hashPassword,verifyPassword} from './password';
 import {publishNft,publishOrder,replayLastNftEvent} from './realtime';
+import {applyNetworkScenario,configureScenario,currentScenario,resetScenario} from './scenarios';
 function auth(request:Request,db:ReturnType<typeof readDB>){const token=request.headers.get('Authorization')?.replace('Bearer ','')??'';return db.users.find(u=>u.id===db.sessions[token])}
 const fail=(message:string,status=400)=>HttpResponse.json({message},{status});
 const sleep=()=>delay(180);
@@ -42,6 +43,14 @@ function settleOrder(ownerId:string,orderId:string){
 }
 
 export const handlers=[
+// Reproduzir uma falha: POST /api/demo/network {"scope":"catalog","mode":"http500"}
+// mode: normal, slow, stagger, http500, offline, expire (expire: session/orders).
+http.get('/api/demo/network',()=>HttpResponse.json({scenario:currentScenario()})),
+http.post('/api/demo/network',async({request})=>{
+  const scenario=configureScenario(await request.json());
+  return scenario?HttpResponse.json({scenario}):fail('Cenário de rede inválido',422);
+}),
+http.delete('/api/demo/network',()=>{resetScenario();return HttpResponse.json({ok:true})}),
 // Cenários de teste determinísticos: REST muda o banco; MSW publica o evento Socket.IO.
 http.post('/api/demo/nft-event',async({request})=>{
   const input=await request.json() as {id?:string;action?:'price_up'|'stock_zero'|'restore'|'replay'};
@@ -55,18 +64,19 @@ http.post('/api/demo/nft-event',async({request})=>{
   nft.version+=1;saveDB(db);publishNft(nft);
   return HttpResponse.json(nft);
 }),
-http.get('/api/nfts',async({request})=>{await sleep();const db=readDB();const url=new URL(request.url);const term=(url.searchParams.get('q')??'').toLowerCase();const category=url.searchParams.get('category')??'All';const sort=url.searchParams.get('sort')??'featured';const page=Math.max(1,Number(url.searchParams.get('page')||1));const filtered=db.nfts.filter(n=>(n.name+' '+n.creator+' '+n.collection).toLowerCase().includes(term)&&(category==='All'||n.category===category));filtered.sort((a,b)=>sort==='price-asc'?Number(a.priceEth)-Number(b.priceEth):sort==='price-desc'?Number(b.priceEth)-Number(a.priceEth):sort==='name'?a.name.localeCompare(b.name):sort==='newest'?Number(b.id.split('-')[1])-Number(a.id.split('-')[1]):Number(Boolean(b.featured))-Number(Boolean(a.featured)));return HttpResponse.json({items:filtered.slice((page-1)*8,page*8),total:filtered.length,page,pages:Math.max(1,Math.ceil(filtered.length/8))})}),
-http.get('/api/nfts/:id',async({params})=>{await sleep();const nft=readDB().nfts.find(n=>n.id===params.id);return nft?HttpResponse.json(nft):fail('NFT não encontrado',404)}),
+http.get('/api/nfts',async({request})=>{const injected=await applyNetworkScenario('catalog',request);if(injected)return injected;await sleep();const db=readDB();const url=new URL(request.url);const term=(url.searchParams.get('q')??'').toLowerCase();const category=url.searchParams.get('category')??'All';const sort=url.searchParams.get('sort')??'featured';const page=Math.max(1,Number(url.searchParams.get('page')||1));const filtered=db.nfts.filter(n=>(n.name+' '+n.creator+' '+n.collection).toLowerCase().includes(term)&&(category==='All'||n.category===category));filtered.sort((a,b)=>sort==='price-asc'?Number(a.priceEth)-Number(b.priceEth):sort==='price-desc'?Number(b.priceEth)-Number(a.priceEth):sort==='name'?a.name.localeCompare(b.name):sort==='newest'?Number(b.id.split('-')[1])-Number(a.id.split('-')[1]):Number(Boolean(b.featured))-Number(Boolean(a.featured)));return HttpResponse.json({items:filtered.slice((page-1)*8,page*8),total:filtered.length,page,pages:Math.max(1,Math.ceil(filtered.length/8))})}),
+http.get('/api/nfts/:id',async({params,request})=>{const injected=await applyNetworkScenario('detail',request);if(injected)return injected;await sleep();const nft=readDB().nfts.find(n=>n.id===params.id);return nft?HttpResponse.json(nft):fail('NFT não encontrado',404)}),
 http.post('/api/auth/login',async({request})=>{await sleep();const {email,password}=await request.json() as {email:string;password:string};const db=readDB();const u=db.users.find(x=>x.email.toLowerCase()===email.toLowerCase());if(!u||!u.passwordHash||!(await verifyPassword(password,u.passwordHash)))return fail('E-mail ou senha incorretos',401);const token=crypto.randomUUID();db.sessions[token]=u.id;saveDB(db);return HttpResponse.json({token,user:{id:u.id,name:u.name,email:u.email}})}),
 http.post('/api/auth/register',async({request})=>{await sleep();const {name,email,password}=await request.json() as {name:string;email:string;password:string};const db=readDB();if(!name||!email.includes('@')||password.length<8)return fail('Confira os campos. Senha mínima: 8 caracteres');if(db.users.some(u=>u.email.toLowerCase()===email.trim().toLowerCase()))return fail('Este e-mail já está cadastrado',409);const user={id:crypto.randomUUID(),name:name.trim(),email:email.trim(),passwordHash:await hashPassword(password)};db.users.push(user);saveDB(db);return HttpResponse.json({id:user.id,name:user.name,email:user.email},{status:201})}),
-http.get('/api/auth/me',({request})=>{const u=auth(request,readDB());return u?HttpResponse.json({id:u.id,name:u.name,email:u.email}):fail('Sessão inválida',401)}),
+http.get('/api/auth/me',async({request})=>{const injected=await applyNetworkScenario('session',request);if(injected)return injected;const u=auth(request,readDB());return u?HttpResponse.json({id:u.id,name:u.name,email:u.email}):fail('Sessão inválida',401)}),
 http.post('/api/auth/logout',({request})=>{const db=readDB();const token=request.headers.get('Authorization')?.replace('Bearer ','')??'';delete db.sessions[token];saveDB(db);return HttpResponse.json({ok:true})}),
 http.get('/api/cart',({request})=>{const db=readDB();const u=auth(request,db);if(!u)return fail('Não autorizado',401);return HttpResponse.json(db.cart[u.id]??{items:[]})}),
 http.put('/api/cart',async({request})=>{const db=readDB();const u=auth(request,db);if(!u)return fail('Não autorizado',401);const body=await request.json() as {items:CartLine[]};const lines=body.items.filter(x=>x.quantity>0);try{quote(lines,null,db)}catch(e){return fail((e as Error).message,409)}db.cart[u.id]={items:lines};saveDB(db);return HttpResponse.json(db.cart[u.id])}),
-http.post('/api/quote',async({request})=>{const db=readDB();const body=await request.json() as {items:CartLine[];coupon:string|null};try{return HttpResponse.json(quote(body.items,body.coupon,db))}catch(e){return fail((e as Error).message,409)}}),
+http.post('/api/quote',async({request})=>{const injected=await applyNetworkScenario('quote',request);if(injected)return injected;const db=readDB();const body=await request.json() as {items:CartLine[];coupon:string|null};try{return HttpResponse.json(quote(body.items,body.coupon,db))}catch(e){return fail((e as Error).message,409)}}),
 http.get('/api/favorites',({request})=>{const db=readDB();const u=auth(request,db);return u?HttpResponse.json(db.favorites[u.id]??[]):fail('Não autorizado',401)}),
 http.put('/api/favorites',async({request})=>{const db=readDB();const u=auth(request,db);if(!u)return fail('Não autorizado',401);const body=await request.json() as {ids:string[]};db.favorites[u.id]=body.ids;saveDB(db);return HttpResponse.json(body.ids)}),
 http.post('/api/orders',async({request})=>{
+  const injected=await applyNetworkScenario('orders',request);if(injected)return injected;
   const db=readDB();
   const u=auth(request,db);
   if(!u)return fail('Sessão expirada ou inválida',401);
@@ -109,6 +119,21 @@ http.post('/api/orders',async({request})=>{
     await delay(11_000);
   }
   return HttpResponse.json(order,{status:202});
+}),
+// Recuperação segura de tentativa idempotente após timeout, refresh ou reconexão.
+// O identificador é sempre resolvido no escopo do usuário autenticado.
+http.get('/api/orders/by-key/:key',async({request,params})=>{
+  const db=readDB();
+  const u=auth(request,db);
+  if(!u)return fail('Sessão expirada ou inválida',401);
+  const order=db.idempotency[`${u.id}:${String(params.key)}`]?.order;
+  if(!order)return fail('Nenhum pedido encontrado para esta tentativa',404);
+  if(order.status==='pending'&&Date.now()-new Date(order.createdAt).getTime()>=2400){
+    settleOrder(u.id,order.id);
+    const updated=readDB().idempotency[`${u.id}:${String(params.key)}`]?.order;
+    return HttpResponse.json(updated??order);
+  }
+  return HttpResponse.json(order);
 }),
 http.get('/api/orders/:id',async({request,params})=>{
   await sleep();

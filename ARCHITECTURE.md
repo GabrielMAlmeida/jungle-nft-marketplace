@@ -39,6 +39,10 @@ A conexão usa `socket.io-client` com transporte WebSocket e `path: /kurio-realt
 
 **Limitação:** os peers existem na instância de Service Worker/browser da simulação. Isso não equivale a um servidor Socket.IO em produção distribuída e não persiste eventos em filas externas. Ao reconectar, a interface recupera os recursos pela API REST.
 
+## Falhas determinísticas no MSW
+
+`src/mocks/scenarios.ts` controla condições de rede por aba (`sessionStorage`), aplicadas **somente** dentro dos handlers de catálogo, detalhe, cotação, sessão e pedido. O estado normal não possui fault injection. Os cenários `slow` e `stagger` atrasam requisições; `http500` retorna HTTP 503; `offline` simula erro de rede; e `expire` invalida o token fictício e retorna HTTP 401. Os modos de erro têm contagem limitada, evitando efeitos persistentes após recuperação. A configuração fica em `/api/demo/network` e está documentada no README.
+
 ## Proteção e limites da simulação
 
 A autorização e as senhas PBKDF2 acontecem apenas no mock do navegador. Trata-se de demonstração, não segurança para credenciais reais: o usuário controla seu próprio storage. O app não recebe dados bancários e não conecta uma carteira real. As URLs de transação e seus hashes são fictícios.
@@ -52,3 +56,7 @@ Inputs shadcn/ui foram integrados a autenticação, perfil, carteiras e checkout
 ## Testes e relatórios
 
 Testes `tests/e2e/*.spec.ts` rodam em Chromium desktop 1440×900 e mobile 390×844, com MSW ligado. Playwright gera HTML e traces em falha. A auditoria Lighthouse deve ser executada no build de preview em três repetições por perfil/página. Resultados não foram pré-preenchidos: documentar os valores realmente medidos.
+
+## Recuperação de pedido após timeout
+
+O checkout salva `kurio-order-attempt` em `sessionStorage` até obter o resultado. Se a requisição atingir timeout **após gravar o pedido**, o usuário pode consultar `GET /api/orders/by-key/:key`, escopado pelo proprietário autenticado. A recuperação funciona mesmo que o pedido finalize em segundo plano e o carrinho fique vazio após refresh. O endpoint retorna o mesmo pedido e nunca inicia outra compra. O fluxo é exercitado em `tests/e2e/idempotency.spec.ts`.

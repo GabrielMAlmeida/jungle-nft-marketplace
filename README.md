@@ -66,6 +66,44 @@ localStorage.clear(); sessionStorage.clear(); location.reload();
 
 O reset apaga usuários, compras e carteiras criados localmente no navegador. Não use dados reais. Em testes Playwright, cada teste deve iniciar com armazenamento limpo.
 
+## Cenários de rede reproduzíveis (MSW)
+
+A API de demonstração expõe `/api/demo/network` para simular condições de rede **na camada MSW**, sem alterar o Axios ou substituir dados diretamente nos componentes. Os cenários são desligados por padrão e armazenados apenas na sessão da aba.
+
+Abra o Console do navegador com a aplicação carregada e execute, por exemplo:
+
+```javascript
+await fetch('/api/demo/network', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({scope: 'catalog', mode: 'http500'})
+});
+```
+
+Em seguida altere a busca na Home. A API responderá com **503 em duas tentativas** (inclui o retry do TanStack Query); o catálogo deverá mostrar erro e permitir **Tentar novamente**. Para retirar a simulação:
+
+```javascript
+await fetch('/api/demo/network', {method: 'DELETE'});
+```
+
+| `scope` | Requisições afetadas | `mode` disponível |
+| --- | --- | --- |
+| `catalog` | GET `/api/nfts` | `slow`, `stagger`, `http500`, `offline` |
+| `detail` | GET `/api/nfts/:id` | `slow`, `stagger`, `http500`, `offline` |
+| `quote` | POST `/api/quote` | `slow`, `stagger`, `http500`, `offline` |
+| `session` | GET `/api/auth/me` | anteriores + `expire` |
+| `orders` | POST `/api/orders` | anteriores + `expire` |
+
+Modos: `slow` acrescenta 1250 ms; `stagger` alterna 1800/60 ms para reproduzir respostas fora de ordem; `http500` retorna 503; `offline` gera erro de conexão; `expire` revoga o token no mock e responde 401. `normal` ou DELETE limpa a configuração. `http500` e `offline` ocorrem **duas vezes por padrão**, para exercitar retries; use `times: 1` a `5` no corpo para personalizar. `expire` ocorre uma vez. A latência retorna ao normal após limpar o cenário. O modo `timeout` do checkout continua disponível no formulário de pagamento e exercita idempotência.
+
+Os testes adicionais estão em `tests/e2e/network.spec.ts`:
+
+```powershell
+npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "MSW|link direto"
+```
+
+**Não use credenciais reais:** a sessão, as carteiras e os pedidos são fictícios e persistidos no navegador. Testes E2E fazem reset local antes de cada cenário.
+
 ## Auditoria Lighthouse — 20/10/2026
 
 Foram executadas **12 auditorias** da versão de produção local (Home e detalhe do NFT, em mobile e desktop, três medições por combinação). Os resultados abaixo são as **medianas** de cada categoria, em escala de 0 a 100.
@@ -94,3 +132,7 @@ Use build Vite (`npm run build`) e diretório `dist/`. No Vercel, o `vercel.json
 ## Arquitetura e limites
 
 Consulte `ARCHITECTURE.md` e `docs/REST_API.md`. Alguns detalhes do mock são representações simplificadas: as quatro artes originais do Figma são reaproveitadas, a seleção de edição é simplificada para uma edição por NFT, e não há blockchain, OAuth externo ou carteira real. As regras da API são simuladas e devem ser avaliadas como tal.
+
+## Verificação de idempotência e timeout
+
+`npm run test:e2e -- --project=chromium --workers=1 --retries=0 --grep "idempotência REST|timeout após criação"` executa os cenários de reenvio da mesma chave, conflito HTTP 409 com conteúdo diferente e recuperação após timeout/refresh usando a **mesma compra**. No checkout, selecione `timeout` em **Cenários de teste (MSW)**; após a mensagem de tempo esgotado, use **Recuperar pedido anterior** para reabrir o recibo sem novo pedido.

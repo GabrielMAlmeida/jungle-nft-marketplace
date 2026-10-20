@@ -33,3 +33,15 @@ Base: `/api`. Cliente: Axios; todos os corpos JSON. JWT real não é utilizado: 
 | `order.updated` | `{eventId,resource:'order',resourceId,ownerId,version,order}` | Pedido pendente/confirmado/recusado para proprietário |
 
 Na conexão o cliente emite `subscribe` com token fictício, e `unsubscribe` ao encerrar. Versões antigas/duplicadas são ignoradas e no `connect` o REST revalida consultas ativas.
+
+## Condições de rede determinísticas
+
+- `GET /api/demo/network` → `{scenario: NetworkScenario | null}`.
+- `POST /api/demo/network` → `{scope, mode, times?}` para configurar um cenário; `422` em configurações inválidas.
+- `DELETE /api/demo/network` → desativa a simulação; `200 {ok:true}`.
+
+`scope` pode ser `catalog`, `detail`, `quote`, `session`, `orders`. `mode` pode ser `normal`, `slow`, `stagger`, `http500`, `offline`, e `expire` (somente para `session` e `orders`). A simulação é implementada exclusivamente dentro dos handlers MSW. Repetições (`times`) são limitadas a 1–5; indisponibilidade por HTTP 503 e conexão abortada ocorrem duas vezes por padrão para cobrir consultas com retry. Um cenário de sessão expirada remove o token fictício da base do mock. Os controles são intencionalmente de demonstração, não fazem parte de uma API real.
+
+## Recuperação idempotente após timeout
+
+`GET /api/orders/by-key/:key` requer sessão Bearer válida e procura a tentativa **somente do usuário autenticado**. Retorna 404 se não há pedido associado, 401 se a sessão expirou, ou o pedido original sem criar outro. O checkout preserva a chave em `sessionStorage` após timeout e oferece **Recuperar pedido anterior**, inclusive se o carrinho estiver vazio após a confirmação assíncrona.

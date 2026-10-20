@@ -36,6 +36,36 @@ export function CheckoutExperience({user,sessionLoading,cart}:Props){
   const [mode,setMode]=useState<Mode>('success');
   const [feedback,setFeedback]=useState('');
   const [busy,setBusy]=useState(false);
+  // A referência da tentativa permanece em sessionStorage após timeout,
+  // inclusive se o carrinho for esvaziado pela confirmação assíncrona.
+  const [pendingAttempt,setPendingAttempt]=useState<Attempt|null>(()=>{
+    try{return JSON.parse(sessionStorage.getItem('kurio-order-attempt')||'null') as Attempt|null}
+    catch{return null}
+  });
+  const [recovering,setRecovering]=useState(false);
+  const recoverable=!!user&&!!pendingAttempt&&(()=>{
+    try{return (JSON.parse(pendingAttempt.fingerprint) as {userId:string}).userId===user.id}
+    catch{return false}
+  })();
+  const recoverPreviousOrder=async()=>{
+    if(!recoverable||!pendingAttempt||recovering)return;
+    setRecovering(true);setFeedback('');
+    try{
+      const result=(await api.get<Order>(`/orders/by-key/${encodeURIComponent(pendingAttempt.key)}`)).data;
+      sessionStorage.removeItem('kurio-order-attempt');
+      setPendingAttempt(null);
+      await navigate({to:'/orders/$id',params:{id:result.id}});
+    }catch(error){setFeedback(`Não foi possível recuperar a tentativa anterior: ${errorMessage(error)}`)}
+    finally{setRecovering(false)}
+  };
+  const recoveryUI=recoverable&&<div className="checkout-error" role="status" style={{marginBottom:16,padding:14}}>
+    <p>Há uma tentativa anterior. Antes de criar outra compra, consulte o pedido já registrado para evitar duplicações.</p>
+    <button type="button" onClick={()=>void recoverPreviousOrder()} disabled={recovering} className="checkout-retry">
+      {recovering?'Recuperando pedido...':'Recuperar pedido anterior'}
+    </button>
+    {feedback&&<p role="alert">{feedback}</p>}
+  </div>;
+
   const [coupon]=useState<string|null>(()=>sessionStorage.getItem('kurio-coupon')||null);
   useEffect(()=>{if(user){setName(current=>current||user.name);setEmail(current=>current||user.email)}},[user]);
   const queryKey=['checkout-quote',user?.id,cart.items,coupon];
@@ -83,9 +113,11 @@ export function CheckoutExperience({user,sessionLoading,cart}:Props){
         }
         attempt={fingerprint,key:crypto.randomUUID()};
         sessionStorage.setItem('kurio-order-attempt',JSON.stringify(attempt));
+        setPendingAttempt(attempt);
       }
       const result=await createOrder.mutateAsync({body,key:attempt!.key});
       sessionStorage.removeItem('kurio-order-attempt');
+      setPendingAttempt(null);
       sessionStorage.removeItem('kurio-coupon');
       await queryClient.invalidateQueries({queryKey:['cart',user.id]});
       await navigate({to:'/orders/$id',params:{id:result.id}});
@@ -97,8 +129,9 @@ export function CheckoutExperience({user,sessionLoading,cart}:Props){
 
   if(sessionLoading||cart.loading)return <div className="kurio-checkout-page"><div className="shimmer h-80 rounded-xl" aria-label="Carregando checkout"/></div>;
   if(!user)return <div className="kurio-checkout-locked"><h1>Entre para finalizar sua coleção</h1><p>Seu carrinho será preservado durante o login.</p><Link to="/login" className="cart-solid-action" onClick={()=>sessionStorage.setItem('kurio-after-login','/checkout')}>Fazer login</Link></div>;
-  if(!cart.items.length)return <div className="kurio-checkout-locked"><h1>Seu carrinho está vazio</h1><Link to="/" search={homeSearch} className="cart-solid-action">Explorar NFTs</Link></div>;
+  if(!cart.items.length)return <div className="kurio-checkout-locked"><h1>Seu carrinho está vazio</h1>{recoveryUI}<Link to="/" search={homeSearch} className="cart-solid-action">Explorar NFTs</Link></div>;
   return <div className="kurio-checkout-page">
+    {recoveryUI}
     <div className="checkout-desktop-crumb"><Link to="/" search={homeSearch}>Início</Link> / Mercado / Pagamento</div>
     <div className="checkout-mobile-heading"><Link to="/cart" aria-label="Voltar ao carrinho"><ArrowLeft size={20}/></Link><h1>Pagamento com carteira</h1></div>
     <form onSubmit={submit} className="checkout-grid">
